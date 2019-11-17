@@ -13,10 +13,12 @@
   - Physics engine with collision resolver and atmospheric simulator.
   - Material-based object design
   - Lighting engine
+  - Hot code reloading for Python, allowing rapid testing and development
   - Container entities that can store other entities
   - Mobs, items, and objects
   - Sound engine
   - Client-side code and asset loading
+  - Client-side UI framework
   - Database storage
   - Logging
 - Extensive documentation for both the Rust and Python API.
