@@ -35,7 +35,7 @@ use std::time::Duration;
 
 
 // 5 microseconds is pretty fast, so adjust this if your computer is slow.
-const LATENCY_CAP: Duration = 5 * DURATION::MICROSECOND;
+const LATENCY_CAP: Duration = Duration::from_micros(5);
 
 #[test]
 fn server_latency_below_threshold() {
