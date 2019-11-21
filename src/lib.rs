@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![feature(try_from)]
 #![feature(trait_alias)]
+#![feature(type_ascription)]
 
 extern crate specs;
 #[macro_use]
