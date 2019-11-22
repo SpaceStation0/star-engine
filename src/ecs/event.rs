@@ -2,19 +2,6 @@ pub use std::any::{TypeId, Any};
 use std::ops::{Index, Add, AddAssign};
 use std::cmp::Ordering;
 
-pub type EventID = TypeId;
-
-pub fn id<E: Event>() -> EventID {
-    EventID::of::<E>()
-}
-
-pub trait Event : Any {
-    fn priority(&self) -> u64 { 0 }
-    fn id(&self) -> EventID {
-        self.type_id()
-    }
-}
-
 impl PartialOrd<dyn Event> for dyn Event {
     fn partial_cmp(&self, rhs: &dyn Event) -> Option<Ordering> {
         self.priority().partial_cmp(&rhs.priority())
@@ -36,18 +23,23 @@ impl Ord for dyn Event {
     }
 }
 
-pub fn is<E:Event + Sized>(any: &Box<dyn Any>) -> bool {
+pub fn is<E:Event + Sized>(event: &Box<dyn Event>) -> bool {
+    let any = event as &dyn Any;
     any.is::<E>()
 }
 
-pub fn downcast<E:Event + Sized>(event: Box<dyn Any>) -> Result<E, Box<dyn Any>> {
-    match event.downcast() {
-        Ok(b) => Ok(*b),
-        Err(e) => Err(e)
+pub fn downcast<E:Event + Sized>(mut event: Box<dyn Event>) -> Result<E, Box<dyn Any>> {
+    let any = event.as_any() as *mut dyn Any;
+    unsafe {
+        let event: Box<dyn Any> = Box::from_raw(any);
+        match event.downcast() {
+            Ok(b) => Ok(*b),
+            Err(e) => Err(e)
+        }
     }
 }
 
-pub fn force_downcast<E:Event + Sized>(event: Box<dyn Any>) -> E {
+pub fn force_downcast<E:Event + Sized>(event: Box<dyn Event>) -> E {
     downcast::<E>(event).expect("Downcasted to wrong event type")
 }
 
@@ -63,7 +55,14 @@ impl Events {
         self.0.push(Box::new(e));
         self.1 = false;
     }
-    pub fn inner(&mut self) -> &mut Vec<Box<dyn Event>> {
+    pub fn push_box(&mut self, event: Box<dyn Event>) {
+        self.0.push(event);
+        self.1 = false;
+    }
+    pub fn inner(&self) -> &Vec<Box<dyn Event>> {
+        &self.0
+    }
+    pub fn inner_mut(&mut self) -> &mut Vec<Box<dyn Event>> {
         &mut self.0
     }
     fn sort(&mut self) {
@@ -82,7 +81,6 @@ impl Add for Events {
 }
 
 impl AddAssign for Events {
-
     fn add_assign(&mut self, mut rhs: Events) {
         self.0.append(&mut rhs.0);
         self.sort();

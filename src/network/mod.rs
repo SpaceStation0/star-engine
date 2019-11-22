@@ -9,7 +9,6 @@ use futures::sync::mpsc::{channel, Receiver, Sender, unbounded, UnboundedReceive
 use std::fmt::Debug;
 use std::thread;
 use std::thread::JoinHandle;
-use crate::ecs::GameUpdate;
 use std::convert::TryFrom;
 use std::sync::{Arc, Mutex};
 
@@ -55,8 +54,13 @@ pub struct ClientInput<M: Message> {
     input: HashMap<ClientID, Vec<M>>
 }
 
+#[derive(Debug)]
+pub struct ClientOutput<M: Message> {
+    output: HashMap<ClientID, Vec<M>>
+}
+
 /// A communication channel with the server.
-pub struct ServerHandle<M: Message>(pub UnboundedReceiver<ClientInput<M>>, pub UnboundedSender<GameUpdate>, pub JoinHandle<()>);
+pub struct ServerHandle<M: Message>(pub UnboundedReceiver<ClientInput<M>>, pub UnboundedSender<ClientOutput<M>>, pub JoinHandle<()>);
 
 /// A helper class for server generation
 pub struct ServerBuilder<M: Message> {
@@ -125,10 +129,10 @@ impl<M: Message> Server<M> {
 
     /// Starts a new thread with Tokio running the server processes. Returns a
     /// communication interface with the server, `ServerHandle`
-    pub fn run(mut self) -> ServerHandle<M> {
+    pub fn run(self) -> ServerHandle<M> {
         let (client_input_tx, client_input_rx) = unbounded::<ClientInput<M>>();
         let (server_tx, server_rx) = unbounded::<M>();
-        let (game_tx, game_rx) = unbounded::<GameUpdate>();
+        let (game_tx, game_rx) = unbounded::<ClientOutput<M>>();
         let shared_client_map = self.clients.clone();
         let hc_client_map = shared_client_map.clone();
         thread::spawn(|| Server::handle_channels(server_rx, hc_client_map));
@@ -198,9 +202,9 @@ impl<M: Message> Sink for MessageSocket<M> {
 
     fn start_send(&mut self, item: Self::SinkItem) -> Result<AsyncSink<Self::SinkItem>, Self::SinkError> {
         // Extract bytes from ClientMessage
-        let ClientMessage { bytes: bytes } = M::into(item);
+        let ClientMessage { bytes } = M::into(item);
         // Begin sending over self.socket
-        self.socket.write(bytes.as_ref());
+        self.socket.write(bytes.as_ref()).unwrap();
         Ok(AsyncSink::Ready)
     }
 
@@ -237,7 +241,7 @@ impl<M: Message> Future for Client<M> {
         for i in 0..MESSAGE_LIMIT {
             match self.server_rx.poll() {
                 Ok(Async::Ready(Some(msg))) => {
-                    self.socket.start_send(msg);
+                    self.socket.start_send(msg).unwrap();
 
                     if i + 1 == MESSAGE_LIMIT {
                         task::current().notify();
