@@ -1,51 +1,45 @@
-use crate::ecs::event::*;
-use std::any::Any;
-use std::mem::swap;
+use super::event::*;
+use specs::prelude::*;
 
-/// Manages the execution of event-based notifiers,
+/// If you want a system to process something that would involve multiple systems,
+/// you implement a notifier callback. Implementing NotifierCallback on a system
+/// allows it to recieve events sent by other systems (or itself).
 ///
-pub struct EventManager {
-    notifiers: Vec<Box<dyn Notifier>>,
-    event_queue: Events
+/// In more technical terms, after the primary game tick, the event dispatch phase occurs.
+/// During the event dispatch phase, events are popped off the NotifierQueue based on their
+/// priority: a higher priority means they get called first. When an event gets popped, it
+/// is sent to all systems that implement the NotifierCallback trait.
+/// The Event will be sent as a Box<dyn Event>. Downcasting to a concrete event type
+/// can be accomplished with `downcast_event` or `force_downcast_event`.
+pub trait NotifierCallback<'a>: System<'a> {
+    type CallbackData: SystemData<'a>;
+
+    fn callback(&mut self, event: Box<dyn Event>, data: Self::CallbackData);
 }
 
-pub trait Notifier {
-    fn filter(&self) -> Vec<EventID>;
-    fn notify(&mut self, e: Box<dyn Event>) -> Events;
+pub struct NotifierQueue {
+    queue: Vec<Box<dyn Event>>,
+    needs_sort: bool
 }
 
-impl EventManager {
-    pub fn new() -> EventManager {
-        EventManager {
-            notifiers: vec!(),
-            event_queue: Events::new()
+impl NotifierQueue {
+    pub fn new() -> NotifierQueue {
+        Default::default()
+    }
+    pub fn push_event<E: Event>(&mut self, event: E) {
+        self.queue.push(Box::new(event));
+        self.needs_sort = true;
+    }
+    pub fn pop_event(&mut self) -> Option<Box<dyn Event>> {
+        if self.needs_sort {
+            self.queue.sort_by_key(|x| x.priority());
         }
+        self.queue.pop()
     }
+}
 
-    pub fn add_notifier<N: Notifier + 'static>(&mut self, notifier: N) {
-        self.notifiers.push(Box::new(notifier));
-    }
-
-    pub fn append_event_queue(&mut self, events: Events) {
-        self.event_queue += events;
-    }
-
-    pub fn run_cycle(&mut self) {
-        let mut working_queue = Events::new();
-        swap(&mut self.event_queue,&mut working_queue);
-        for mut event in working_queue {
-            for mut notifier in &mut self.notifiers {
-                let filter = notifier.filter();
-                if filter.contains(&event.id()) {
-                    let events = notifier.notify(event);
-                    self.event_queue += events;
-                    break;
-                }
-            }
-        }
-    }
-
-    pub fn event_count(&self) -> usize {
-        self.event_queue.inner().len()
+impl Default for NotifierQueue {
+    fn default() -> NotifierQueue {
+        NotifierQueue { queue: vec!(), needs_sort: false }
     }
 }

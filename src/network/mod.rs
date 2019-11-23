@@ -3,7 +3,6 @@ use tokio::net::{TcpListener, TcpStream};
 use std::net::{SocketAddr, Shutdown};
 use std::collections::HashMap;
 use tokio::prelude::*;
-use tokio::prelude::stream::ForEach;
 use bytes::{Bytes, BytesMut};
 use futures::sync::mpsc::{channel, Receiver, Sender, unbounded, UnboundedReceiver, UnboundedSender};
 use std::fmt::Debug;
