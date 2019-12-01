@@ -1,103 +1,103 @@
-pub use std::any::{TypeId, Any};
-use std::ops::{Index, Add, AddAssign};
-use std::cmp::Ordering;
+use specs::*;
+use std::any::{Any, TypeId};
 
 pub type EventID = TypeId;
 
+pub trait EventFilter {
+    fn has_type(event_id: EventID) -> bool;
+}
+
+pub trait Event : Any + Send + Sync {
+    /// The priority of an event determines when it will be executed. The higher
+    /// the priority, the sooner it will be called.
+    fn priority(&self) -> u64 { 0 }
+    /// To properly downcast to a concrete type, an Event
+    /// must provide a mutable reference to it's representation as
+    /// an `Any` object. Due to restrictions of Rust, this must be done
+    /// manually for each trait.
+    /// Unless there's a *very* good reason for it, you should implement
+    /// this function like so:
+    /// ```
+    /// impl Event for SomeStruct {
+    ///     fn as_mut_any(&mut self) -> &mut dyn Any {
+    ///         self as &mut dyn Any
+    ///     }
+    /// }
+    /// ```
+    fn as_mut_any(&mut self) -> &mut dyn Any;
+}
+
+/// Get the EventID (which is just an alias for `std::any::TypeId`) of a certain event type.
 pub fn id<E: Event>() -> EventID {
     EventID::of::<E>()
 }
 
-pub trait Event : Any {
-    fn priority(&self) -> u64 { 0 }
-    fn id(&self) -> EventID {
-        self.type_id()
+pub fn is<E: EventFilter>(event: &Box<dyn Event>) -> bool {
+    E::has_type(event.type_id())
+}
+
+/// Downcast a dynamic box pointer to an `Event` trait object into a concrete type.
+/// This may fail, and will return a box pointer to the `dyn Any` version of this object.
+pub fn downcast_event<E: Event>(mut event: Box<dyn Event>) -> Result<E, Box<dyn Any>> {
+    // Even though this has an unsafe block around it, the operation
+    // is perfectly safe. What we're doing here is turing our argument into
+    // a mutable pointer, and then making it owned by the box pointer.
+    // Since the box pointer for the trait object has already been moved into this scope,
+    // we aren't breaking borrowing rules; the reason why we need a pointer and not a reference
+    // is because the borrow checker would complain that the reference outlives the scope.
+    let event_any = unsafe {
+        Box::from_raw(event.as_mut_any() as *mut dyn Any)
+    };
+    match event_any.downcast() {
+        Ok(e) => Ok(*e),
+        Err(box_any) => Err(box_any)
     }
 }
 
-impl PartialOrd<dyn Event> for dyn Event {
-    fn partial_cmp(&self, rhs: &dyn Event) -> Option<Ordering> {
-        self.priority().partial_cmp(&rhs.priority())
+/// Forcibly downcast a dynamic box pointer to an `Event` trait object into
+/// a concrete type.
+/// # Panics
+/// This will panic if the cast fails. Only call this if you're certain about the
+/// type of the event!
+pub fn force_downcast_event<E: Event>(event: Box<dyn Event>) -> E {
+    downcast_event(event).expect("Downcast of event failed")
+}
+
+impl<A> EventFilter for A
+where A: Event {
+    fn has_type(event_id: EventID) -> bool {
+        id::<A>() == event_id
     }
 }
 
-impl PartialEq<dyn Event> for dyn Event {
-    fn eq(&self, rhs: &dyn Event) -> bool {
-        self.id() == rhs.id()
+impl<A, B> EventFilter for (A, B)
+    where A: Event, B: Event {
+    fn has_type(event_id: EventID) -> bool {
+        id::<A>() == event_id || id::<B>() == event_id
     }
 }
 
-impl Eq for dyn Event {}
-
-
-impl Ord for dyn Event {
-    fn cmp(&self, other: &dyn Event) -> Ordering {
-        self.priority().cmp(&other.priority())
+impl<A, B, C> EventFilter for (A, B, C)
+    where A: Event, B: Event, C: Event {
+    fn has_type(event_id: EventID) -> bool {
+        id::<A>() == event_id || id::<B>() == event_id
+        || id::<C>() == event_id
     }
 }
 
-pub fn is<E:Event + Sized>(any: &Box<dyn Any>) -> bool {
-    any.is::<E>()
-}
-
-pub fn downcast<E:Event + Sized>(event: Box<dyn Any>) -> Result<E, Box<dyn Any>> {
-    match event.downcast() {
-        Ok(b) => Ok(*b),
-        Err(e) => Err(e)
+impl<A, B, C, D> EventFilter for (A, B, C, D)
+    where A: Event, B: Event, C: Event, D: Event {
+    fn has_type(event_id: EventID) -> bool {
+        id::<A>() == event_id || id::<B>() == event_id
+        || id::<C>() == event_id || id::<D>() == event_id
     }
 }
 
-pub fn force_downcast<E:Event + Sized>(event: Box<dyn Any>) -> E {
-    downcast::<E>(event).expect("Downcasted to wrong event type")
-}
-
-// Note: the bool value is for checking whether the event list
-// needs to be shuffled, so that events can be re-arranged lazily.
-pub struct Events(Vec<Box<dyn Event>>, bool);
-
-impl Events {
-    pub fn new() -> Events {
-        Events(Vec::new(), true)
-    }
-    pub fn push<E>(&mut self, e: E) where E: Event {
-        self.0.push(Box::new(e));
-        self.1 = false;
-    }
-    pub fn inner(&mut self) -> &mut Vec<Box<dyn Event>> {
-        &mut self.0
-    }
-    fn sort(&mut self) {
-        self.0.sort_unstable();
-    }
-}
-
-impl Add for Events {
-    type Output = Events;
-
-    fn add(mut self, mut rhs: Events) -> Events {
-        self.0.append(&mut rhs.0);
-        self.sort();
-        self
-    }
-}
-
-impl AddAssign for Events {
-
-    fn add_assign(&mut self, mut rhs: Events) {
-        self.0.append(&mut rhs.0);
-        self.sort();
-    }
-}
-
-impl<'a> IntoIterator for Events {
-    type Item = Box<dyn Event>;
-    type IntoIter = <Vec<Box<dyn Event>> as IntoIterator>::IntoIter;
-    fn into_iter(mut self) -> Self::IntoIter {
-        // Sort elements before iteration
-        if self.1 {
-            self.sort();
-            self.1 = false;
-        }
-        self.0.into_iter()
+impl<A, B, C, D, E> EventFilter for (A, B, C, D, E)
+    where A: Event, B: Event, C: Event, D: Event, E: Event {
+    fn has_type(event_id: EventID) -> bool {
+        id::<A>() == event_id || id::<B>() == event_id
+        || id::<C>() == event_id || id::<D>() == event_id
+        || id::<E>() == event_id
     }
 }

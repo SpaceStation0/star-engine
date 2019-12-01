@@ -1,4 +1,5 @@
 pub use cpython;
+pub mod component;
 use cpython::{Python, PyObject, GILGuard, PyModule, FromPyObject};
 use std::path::Path;
 use std::marker::PhantomData;
