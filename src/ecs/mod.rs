@@ -24,40 +24,43 @@
 //! each of their respective folders.
 
 use specs::{World, Dispatcher, DispatcherBuilder};
-use specs::shred::ParSeq;
-use super::script::PythonInterpreter;
+use crate::network::{Server, ClientMessageCodec};
 
 pub mod event;
+pub mod events;
 pub mod notifier;
 pub mod network;
 
 /// The main struct, from which all game execution
 /// occurs. A container of all engine elements.
-pub struct Game<'a, 'b, P, T> {
+pub struct Game<'a, 'b> {
     world: World,
     dispatcher: Dispatcher<'a, 'b>,
-    notify_dispatcher: ParSeq<P, T>,
+    notify_dispatcher: Dispatcher<'a, 'b>,
 
 }
 
-pub struct GameBuilder<'a, 'b, P, T> {
+pub struct GameBuilder<'a, 'b> {
     world: World,
     dispatcher: DispatcherBuilder<'a, 'b>,
-    notify_dispatcher: Option<ParSeq<P, T>>
+    notify_dispatcher: DispatcherBuilder<'a, 'b>
 }
 
-impl<'a, 'b, P, T> Game<'a, 'b, P, T> {
-    pub fn new() -> GameBuilder<'a, 'b, P, T> {
+impl<'a, 'b> Game<'a, 'b> {
+    pub fn new_builder() -> GameBuilder<'a, 'b> {
         GameBuilder {
             world: World::new(),
             dispatcher: DispatcherBuilder::new(),
-            notify_dispatcher: None
+            notify_dispatcher: DispatcherBuilder::new()
         }
     }
 
     //TODO: Add server options
-    pub fn start_server(&mut self) {
-
+    pub fn start_server<C>(&mut self, codec: C)
+    where C: ClientMessageCodec + Send + 'static {
+        // Create a new server and serve it
+        let server = Server::new(codec);
+        server.start();
     }
 
     pub fn tick(&mut self) {
@@ -73,7 +76,7 @@ impl<'a, 'b, P, T> Game<'a, 'b, P, T> {
     }
 }
 
-impl<'a, 'b, P, T> Game<'a, 'b, P, T> {
+impl<'a, 'b> Game<'a, 'b> {
     async fn internal_tick(&mut self) -> Result<(), String> {
         Ok(())
     }
@@ -88,4 +91,8 @@ impl<'a, 'b, P, T> Game<'a, 'b, P, T> {
         std::mem::swap(&mut self.world, &mut world);
         drop(world);
     }
+}
+
+impl<'a, 'b> GameBuilder<'a, 'b> {
+
 }

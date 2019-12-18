@@ -1,12 +1,12 @@
 use crate::network::*;
-use std::any::Any;
 use specs::World;
 
+/// Updaters are payloads of data that can load themselves onto the world.
 pub trait Updater {
     fn update_world(self, world: &mut World);
 }
 
-/// Handles messages from the client and
+/// Handles messages from the client and makes the appropriate adjustments to the world
 pub trait ClientMessageHandler {
     fn refresh_messages(&mut self, client_messages: ClientMessages, world: &mut World);
 }
