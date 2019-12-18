@@ -1,10 +1,7 @@
 pub use cpython;
 pub mod component;
 use cpython::{Python, PyObject, GILGuard, PyModule, FromPyObject};
-use std::path::Path;
-use std::marker::PhantomData;
 use std::collections::HashMap;
-use std::hint::unreachable_unchecked;
 
 pub type InterpreterResult<T> = Result<T, String>;
 
@@ -25,11 +22,7 @@ pub struct PythonInterpreter {
 
 impl PythonInterpreter {
     pub fn new() -> PythonInterpreter {
-        PythonInterpreter {
-            gil_guard: Python::acquire_gil(),
-            modules: HashMap::new(),
-            script_id_counter: 0
-        }
+        PythonInterpreter::default()
     }
 
     /// This is a helper function that appends a path to `sys.path` to allow imports from other locations.
@@ -116,6 +109,16 @@ impl PythonInterpreter {
         }
     }
 
+}
+
+impl Default for PythonInterpreter {
+    fn default() -> PythonInterpreter {
+        PythonInterpreter {
+            gil_guard: Python::acquire_gil(),
+            modules: HashMap::new(),
+            script_id_counter: 0
+        }
+    }
 }
 
 /// A subsystem that sends ECS data to Python scripts.

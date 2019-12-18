@@ -1,14 +1,14 @@
 use tokio::net::{TcpListener, TcpStream};
-use std::net::{SocketAddr, Shutdown, IpAddr};
+use std::net::{SocketAddr, IpAddr};
 use std::collections::HashMap;
 use bytes::{BytesMut};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::{UnboundedSender, UnboundedReceiver, unbounded_channel};
-use std::task::Poll;
 use tokio::net::tcp::split::{ReadHalf, WriteHalf};
 use tokio::prelude::*;
 use futures::future;
 use std::str::FromStr;
+use std::io::ErrorKind;
 
 pub struct Message {
     pub bytes: BytesMut
@@ -25,6 +25,8 @@ pub type SharedClientMap = Arc<Mutex<ClientMap>>;
 /// A client identifier number, used to represent the UID (Unique Identifier) for each client.
 pub type ClientID = u32;
 
+/// A wrapper type for a map of client IDs to messages. This is used to relate
+/// messages to a certain client.
 pub type ClientMessages = HashMap<ClientID, Vec<Message>>;
 
 /// A client future that processes a client connection and
@@ -66,6 +68,7 @@ where C: ClientMessageCodec<Output=M> + Send + 'static, M: 'static {
     pub fn start(mut self) {
         tokio::runtime::Runtime::new().unwrap().block_on(
             async move {
+                // TODO: Do something with this error
                 let _ = self.serve().await;
             }
         );
@@ -78,6 +81,7 @@ where C: ClientMessageCodec<Output=M> + Send + 'static, M: 'static {
         let mut client_nonce: ClientID = 0;
         let mut listener = TcpListener::bind(
             SocketAddr::new(IpAddr::from_str("0.0.0.0").unwrap(), 4343)).await?;
+        #[allow(irrefutable_let_patterns)]
         while let (stream, address) = listener.accept().await? {
             let id = client_nonce;
             let (tx, rx) = unbounded_channel();
@@ -88,7 +92,7 @@ where C: ClientMessageCodec<Output=M> + Send + 'static, M: 'static {
                 Client::new(stream, id, tx2, rx, client_map)
                     .process().await;
             });
-
+            client_nonce += 1;
         }
 
         Ok(())
@@ -129,10 +133,12 @@ impl Client {
             let mut buffer = BytesMut::with_capacity(Client::BUFFER_SIZE);
             println!("Reading");
             r_socket.read(&mut buffer).await?;
-            if buffer.iter().zip([0 as u8; 4096].iter()).all(|(a, b)| a == b) {
+            // This checks if the buffer is just a bunch of zeros (and therefore blank).
+            if buffer.iter().all(|&x| x == 0) {
                 break;
             }
-            server_tx.send(Message { bytes: buffer }).await;
+            server_tx.send(Message { bytes: buffer }).await
+                .map_err(|e| std::io::Error::new(ErrorKind::ConnectionAborted, e))?;
         }
         Ok(())
     }
@@ -144,7 +150,7 @@ impl Client {
     }
     async fn process(mut self) {
 
-        let (mut r_socket, mut w_socket) = self.socket.split();
+        let (r_socket, w_socket) = self.socket.split();
         let _ = future::join(
             Client::read(r_socket, self.server_tx),
             Client::write(w_socket, self.server_rx)
