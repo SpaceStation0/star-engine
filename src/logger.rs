@@ -40,9 +40,13 @@ pub fn error<T>(msg: T) where T: Into<String> {
     LOGGER.lock().unwrap().log(LogType::Error, msg.into()).unwrap();
 }
 
+#[cfg(build = "debug")]
 pub fn debug<T>(msg: T) where T: Into<String> {
     LOGGER.lock().unwrap().log(LogType::Debug, msg.into()).unwrap();
 }
+
+#[cfg(build = "release")]
+pub fn debug<T>(msg: T) where T: Into<String> {}
 
 pub type LogTypeFilter = Vec<LogType>;
 

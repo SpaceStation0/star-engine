@@ -1,10 +1,6 @@
 use crate::network::*;
 use specs::World;
-
-/// Updaters are payloads of data that can load themselves onto the world.
-pub trait Updater {
-    fn update_world(self, world: &mut World);
-}
+use super::Updater;
 
 /// Handles messages from the client and makes the appropriate adjustments to the world
 pub trait ClientMessageHandler {

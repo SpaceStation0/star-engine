@@ -40,8 +40,8 @@ impl<'a> System<'a> for DamageSystem {
 type DamageFilter = Attack;
 
 fn main() {
-    let file = File::create("./logs.txt").unwrap();
-    logger::set_logging_output(file);
+    //let file = File::create("./logs.txt").unwrap();
+    //logger::set_logging_output(file);
     let game = Game::new_builder();
 
     let mut res = Resources::new();
@@ -52,8 +52,6 @@ fn main() {
     };
     res.insert(queue);
     let filter: Events<DamageFilter> = SystemData::fetch(&res);
-    //let iter = filter.iter();
-    //drop(filter);
     for i in filter.iter() {
         logger::info(format!("{:?}", (force_downcast_event_ref(i): &Attack)));
     }

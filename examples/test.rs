@@ -1,5 +1,5 @@
 #![feature(try_from)]
-extern crate hyperspeed;
+extern crate star_engine as hyperspeed;
 use hyperspeed::network::*;
 use hyperspeed::script::{PythonInterpreter, InterpreterResult};
 use bytes::{BytesMut};

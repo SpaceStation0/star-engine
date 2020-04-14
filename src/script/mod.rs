@@ -1,5 +1,5 @@
 pub use cpython;
-pub mod component;
+pub mod system;
 use cpython::{Python, PyObject, GILGuard, PyModule, FromPyObject};
 use std::collections::HashMap;
 
@@ -71,7 +71,7 @@ impl PythonInterpreter {
         }
     }
 
-    pub fn get_value(&mut self, script: ScriptID, variable_name: &str) -> InterpreterResult<PyObject> {
+    pub fn get_value(&self, script: ScriptID, variable_name: &str) -> InterpreterResult<PyObject> {
         let python = self.gil_guard.python();
         match self.modules.get(&script) {
             Some(m) => {
@@ -119,11 +119,6 @@ impl Default for PythonInterpreter {
             script_id_counter: 0
         }
     }
-}
-
-/// A subsystem that sends ECS data to Python scripts.
-pub struct PythonScriptSystem {
-    backend: PythonInterpreter
 }
 
 /// This is currently unimplemented
