@@ -73,6 +73,8 @@ impl<'a, 'b> Game<'a, 'b> {
     }
 
     pub fn tick(&mut self) {
+        self.dispatcher.dispatch(&self.world.res);
+        self.event_dispatcher.dispatch(&self.world.res);
         for mut i in &mut self.interpreter_dispatcher {
             i.run(&self.world);
         }

@@ -1,6 +1,6 @@
 pub use cpython;
 pub mod system;
-use cpython::{Python, PyObject, GILGuard, PyModule, FromPyObject};
+use cpython::{Python, PyObject, GILGuard, PyModule, FromPyObject, PyResult, PyErr};
 use std::collections::HashMap;
 
 pub type InterpreterResult<T> = Result<T, String>;
@@ -120,6 +120,3 @@ impl Default for PythonInterpreter {
         }
     }
 }
-
-/// This is currently unimplemented
-pub struct LuaScriptSystem {}

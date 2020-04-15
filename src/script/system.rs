@@ -1,16 +1,18 @@
 use super::*;
 use specs::{World};
 use shred::{Resource, ResourceId};
-use cpython::ToPyObject;
+use cpython::{ToPyObject, PyErr, PyResult, ObjectProtocol, exc, PyList, NoArgs};
 use crate::logger::info;
+use std::convert::TryInto;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Accessor {
     Read(String),
     Write(String),
     Entities
 }
 
-
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct PythonSystem {
     name: String,
     accessors: Vec<Accessor>
@@ -25,7 +27,7 @@ pub struct InterpreterSystem {
     pub write_resource_map: HashMap<String, ResourceId>,
     interpreter: PythonInterpreter,
     modules: HashMap<String, u64>,
-    systems: HashMap<u64, PythonSystem>
+    systems: HashMap<u64, Vec<PythonSystem>>
 }
 
 impl PythonSystem {
@@ -34,6 +36,35 @@ impl PythonSystem {
             name,
             accessors
         }
+    }
+}
+
+impl<'a> FromPyObject<'a> for Accessor {
+    fn extract(py: Python<'_>, obj: &'a PyObject) -> PyResult<Self> {
+        match obj.get_type(py).name(py).to_string().as_str() {
+            "Read" => {
+                let name: String = obj.getattr(py, "class_name")?.extract(py)?;
+                Ok(Accessor::Read(name))
+            },
+            "Write" => {
+                let name: String = obj.getattr(py, "class_name")?.extract(py)?;
+                Ok(Accessor::Write(name))
+            },
+            "Entities" => {
+                Ok(Accessor::Entities)
+            },
+            _ => {
+                Err(PyErr::new::<exc::TypeError, _>(py, "Expected either 'Read', 'Write', or 'Entities' class"))
+            }
+        }
+    }
+}
+
+impl<'a> FromPyObject<'a> for PythonSystem {
+    fn extract(py: Python<'_>, obj: &'a PyObject) -> PyResult<Self> {
+        let name: String = obj.get_type(py).name(py).to_string();
+        let data: Vec<Accessor> = obj.call_method(py, "data", NoArgs, None)?.extract(py)?;
+        Ok(PythonSystem::new(name, data))
     }
 }
 
@@ -74,10 +105,12 @@ impl InterpreterSystem {
         }
     }
 
-    fn get_module_systems(&self, id: u64) -> InterpreterResult<Vec<String>> {
+    fn get_module_systems(&self, id: u64) -> InterpreterResult<Vec<PythonSystem>> {
         match self.interpreter.get_value(id, "systems") {
             Ok(py_obj) => {
-                Ok(vec!())
+                let py = self.interpreter.gil_guard.python();
+                let systems: Vec<PythonSystem> = py_obj.extract(py).map_err(|e| format!("{:?}", e))?;
+                Ok(systems)
             },
             Err(_) => {
                 info(format!("The script with id ({}) has no 'systems' variable, and therefore will not be processed.", id));
