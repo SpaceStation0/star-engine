@@ -72,12 +72,13 @@ impl<'a, 'b> Game<'a, 'b> {
         self.world.add_resource(C::Output::default());
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> Result<(), ()> {
         self.dispatcher.dispatch(&self.world.res);
         self.event_dispatcher.dispatch(&self.world.res);
-        for mut i in &mut self.interpreter_dispatcher {
-            i.run(&self.world);
+        for i in &mut self.interpreter_dispatcher {
+            i.run(&self.world).map_err(|_| ())?;
         }
+        Ok(())
     }
 
     pub fn status(&self) {

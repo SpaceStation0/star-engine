@@ -98,11 +98,12 @@ impl InterpreterSystem {
         Ok(())
     }
 
-    pub fn run(&mut self, world: &World) {
+    pub fn run(&mut self, world: &World) -> InterpreterResult<()> {
         for (module, id) in self.modules.iter() {
             // Get module systems
-            self.get_module_systems(*id);
+            self.get_module_systems(*id)?;
         }
+        Ok(())
     }
 
     fn get_module_systems(&self, id: u64) -> InterpreterResult<Vec<PythonSystem>> {
