@@ -1,12 +1,9 @@
 extern crate star_engine;
 
 use star_engine::ecs::Game;
-use star_engine::script::{PythonInterpreter, system::InterpreterSystem};
-use specs::{World, System, Read};
-use cascade::cascade;
+use star_engine::script::{system::InterpreterSystem};
+use specs::{System, Read};
 use star_engine::logger::info;
-
-fn run_interpreter(inter: &mut InterpreterSystem, world: &World) {}
 
 fn test_interpreter() -> InterpreterSystem {
     let mut i = InterpreterSystem::new();
@@ -28,5 +25,5 @@ impl<'a> System<'a> for ExampleSystem {
 
 fn main() {
     let mut game = Game::new_builder().with_interpreter_system(test_interpreter()).build();
-    game.tick();
+    game.tick().unwrap();
 }
