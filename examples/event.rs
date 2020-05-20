@@ -2,14 +2,11 @@
 extern crate star_engine;
 use star_engine::ecs::event::*;
 use std::any::Any;
-use specs::{System, Write, Resources};
-use star_engine::ecs::notifier::{NotifierQueue};
+use specs::{System, Write};
+use star_engine::ecs::notifier::{NotifierQueue, NotifierCallback};
 use std::fs::File;
 use star_engine::logger;
 use star_engine::ecs::Game;
-use star_engine::ecs::events::Events;
-use cascade::cascade;
-use specs::SystemData;
 
 type PlayerID = u64;
 
@@ -37,22 +34,20 @@ impl<'a> System<'a> for DamageSystem {
     }
 }
 
+impl<'a> NotifierCallback<'a> for DamageSystem {
+    type Filter = DamageFilter;
+    fn handle_event(event: &dyn Event) {
+        let attack: &Attack = force_downcast_event_ref(event);
+        logger::info(format!("{:?}", attack));
+    }
+}
+
 type DamageFilter = Attack;
 
-fn main() {
-    //let file = File::create("./logs.txt").unwrap();
-    //logger::set_logging_output(file);
-    let game = Game::new_builder();
-
-    let mut res = Resources::new();
-    let queue = cascade! {
-        NotifierQueue::new();
-        ..push_event(Attack { damage: 1, from: 0, to: 1});
-        ..push_event(Attack { damage: 1, from: 1, to: 2});
-    };
-    res.insert(queue);
-    let filter: Events<DamageFilter> = SystemData::fetch(&res);
-    for i in filter.iter() {
-        logger::info(format!("{:?}", (force_downcast_event_ref(i): &Attack)));
-    }
+fn main() -> Result<(), ()> {
+    let file = File::create("./logs.txt").unwrap();
+    logger::set_logging_output(file);
+    let mut game = Game::new_builder().with_system(DamageSystem {}, "damage", &[]).build();
+    game.tick()?;
+    Ok(())
 }

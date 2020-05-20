@@ -1,5 +1,6 @@
 use super::event::*;
 use std::slice::Iter;
+use specs::System;
 /*
 /// If you want a system to process something that would involve multiple systems,
 /// you implement a notifier callback. Implementing NotifierCallback on a system
@@ -28,6 +29,12 @@ pub struct NotifierQueue {
     needs_sort: bool
 }
 
+pub trait NotifierCallback<'a> : System<'a> {
+    type Filter: EventFilter;
+
+    fn handle_event(event: &dyn Event);
+}
+
 impl NotifierQueue {
     pub fn new() -> NotifierQueue {
         Default::default()
@@ -50,8 +57,6 @@ impl NotifierQueue {
         self.needs_sort = false;
     }
 }
-
-
 
 impl Default for NotifierQueue {
     fn default() -> NotifierQueue {
